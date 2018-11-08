@@ -1,0 +1,1 @@
+struct list { int head; };
