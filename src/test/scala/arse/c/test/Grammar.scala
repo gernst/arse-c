@@ -12,12 +12,12 @@ object Grammar {
     object whitespace extends arse.Whitespace("\\s*")
     object grammar extends arse.c.Grammar
     val in = arse.input(text)(whitespace)
-    val res = grammar.unit.parse(in)
+    val res = grammar.unit.$.parse(in)
     (res, grammar.context)
   }
   
   def main(args: Array[String]) {
     val (res, _) = load("test.c")
-    println(res)
+    res map println
   }
 }

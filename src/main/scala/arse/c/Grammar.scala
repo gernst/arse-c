@@ -5,10 +5,30 @@ import arse.implicits._
 
 class Grammar {
   object context {
-    var typedefs: Map[String, Type] = Map()
     var structs: Map[String, Type] = Map()
-    var unions: Map[String, Type] = Map()
     var enums: Map[String, Type] = Map()
+    var idents: Map[String, (Type, Impl)] = Map()
+
+    object struct_def extends ((String, List[Field]) => StructDef) {
+      def apply(name: String, fields: List[Field]) = {
+        structs += name -> StructType(fields)
+        StructDef(name, fields)
+      }
+    }
+
+    object enum_def extends ((String, List[String]) => EnumDef) {
+      def apply(name: String, cases: List[String]) = {
+        enums += name -> EnumType(cases)
+        EnumDef(name, cases)
+      }
+    }
+
+    object id_def extends ((Type, String, Impl) => IdDef) {
+      def apply(typ: Type, name: String, impl: Impl) = {
+        idents += name -> (typ, impl)
+        IdDef(typ, name, impl)
+      }
+    }
   }
 
   import context._
@@ -18,15 +38,12 @@ class Grammar {
   val names = name ~* ","
 
   val id = Id(name)
-  val const = (int | string) map Const // XXX: proper excaping of string literals
+  val const = int map Const
+  val type_spec = Sort(L("void", "int", "bool"))
 
-  val type_spec = Void("void") | SInt("int") // "char", "short", "int", "long", "float", "double", "signed", "unsigned")
-
-  val type_union = "union" ~ unions(name)
   val type_struct = "struct" ~ structs(name)
   val type_enum = "enum" ~ enums(name)
-  val type_def = typedefs(name filter (n => typedefs contains n))
-  val typ: Parser[Type] = type_union | type_struct | type_def | type_spec
+  val typ: Parser[Type] = type_struct | type_enum | type_spec
 
   object app extends ((String, List[Expr]) => Expr) {
     def apply(op: String, args: List[Expr]) = args match {
@@ -40,7 +57,7 @@ class Grammar {
 
   val primary_expr = id | const
 
-  val expr_cast: Parser[Expr] = P(Cast("(" ?~ typ ~ ")" ~ expr_cast))
+  val expr_cast: Parser[Expr] = P(Cast("(" ?~ typ ~ ")" ~ expr_cast)) | primary_expr
   val expr_parens = ("(" ~ expr_low ~ ")")
   // val expr_unary = ???
 
@@ -52,24 +69,27 @@ class Grammar {
   val expr = expr_low
   val exprs = expr ~+ ","
 
-  val global: Parser[Global] = P(typedef | structdef | uniondef | enumdef | vardef | fundef)
+  val global: Parser[Global] = P(structdef | enumdef | iddef)
   val unit = global *
 
   val field = Field(typ ~ name)
   val fields = (field ~ ";") *
 
-  val typedef = TypeDef("typedef" ~ typ ~ name ~ ";")
-  val structdef = StructDef("struct" ~ name ~ ("{" ~ fields ~ "}").? ~ ";")
-  val uniondef = UnionDef("union" ~ name ~ ("{" ~ fields ~ "}").? ~ ";")
-  val enumdef = EnumDef("enum" ~ name ~ ("{" ~ names ~ "}").? ~ ";")
+  val structdef = struct_def("struct" ~ name ~ "{" ~ fields ~ "}" ~ ";")
+  val enumdef = enum_def("enum" ~ name ~ "{" ~ names ~ "}" ~ ";")
 
   val init = "=" ~ expr
-  val vardef = VarDef(typ ~ name ~ init.?)
+  val varimpl = VarImpl(init.? ~ ";")
 
-  val fundecl_arg = typ <~ name.?
-  val fundecl_args = fundecl_arg ~* ","
   val block: Parser[Block] = Block("{" ~ ret(Nil) ~ "}")
-  val fundef = FunDef(typ ~ name ~ "(" ~ fundecl_args ~ ")" ~ block.?)
+  val block_option = (block map { Some(_) }) | None(";")
+
+  val param = Param(typ ~ name)
+  val params = param ~* ","
+  val funimpl = FunImpl("(" ~ params ~ ")" ~ block_option)
+
+  val impl = funimpl | varimpl
+  val iddef = id_def(typ ~ name ~ impl)
 
   /*
 sealed trait Type

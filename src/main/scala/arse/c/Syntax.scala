@@ -1,22 +1,28 @@
 package arse.c
 
 case class Field(typ: Type, name: String)
+case class Param(typ: Type, name: String)
 
 sealed trait Global
 
-case class TypeDef(typ: Type, name: String) extends Global
+case class StructDef(name: String, fields: List[Field]) extends Global
+case class UnionDef(name: String, fields: List[Field]) extends Global
+case class EnumDef(name: String, cases: List[String]) extends Global
 
-case class StructDef(name: String, fields: Option[List[Field]]) extends Global
-case class UnionDef(name: String, cases: Option[List[Field]]) extends Global
-case class EnumDef(name: String, consts: Option[List[String]]) extends Global
+case class IdDef(typ: Type, name: String, impl: Impl) extends Global
 
-case class VarDef(typ: Type, name: String, init: Option[Expr]) extends Global
-case class FunDef(ret: Type, name: String, args: List[Type], body: Option[Block]) extends Global
+sealed trait Impl
+case class VarImpl(init: Option[Expr]) extends Impl
+case class FunImpl(params: List[Param], body: Option[Block]) extends Impl
 
 sealed trait Type
-case object Void extends Type
-case object SInt extends Type // size in bytes
-case object UInt extends Type // size in bytes
+case class Sort(name: String) extends Type
+
+object Sort extends (String => Sort) {
+  def int = Sort("int")
+  def bool = Sort("bool")
+  def void = Sort("void")
+}
 
 case class Ptr(typ: Type) extends Type
 
