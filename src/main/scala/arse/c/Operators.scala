@@ -10,7 +10,9 @@ object Operators {
   }
   
   object high extends Syntax[String] {
-    val postfix_ops = Map()
+    val postfix_ops = Map(
+      "++" -> 15,
+      "--" -> 15)
     val prefix_ops = Map(
       "++" -> 14,
       "--" -> 14,

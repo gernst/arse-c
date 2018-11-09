@@ -56,3 +56,15 @@ Domain    *indicated_domain;
 Lock      *compositor_read_atomicity_lock;
 Event     *compositor_cursor_position;
 Domain    *compositor_domain_under_cursor;
+
+void driver() {
+    *x = 0;
+    
+    if(true) {}
+    if(true) {} else {}
+    while(true) {
+    }
+}
+
+
+

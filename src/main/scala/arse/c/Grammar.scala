@@ -50,7 +50,8 @@ class Grammar {
 
   import context._
 
-  val op = S("[~!%^&|*-+=<>,/]+")
+  val low_op = L(Operators.low.ops: _*)
+  val high_op = L(Operators.high.ops: _*)
   val name = S("[a-zA-Z_][a-zA-Z_0-9]*")
   val names = name ~* ","
 
@@ -71,7 +72,7 @@ class Grammar {
   val fields = (field ~ ";") *
   val struct = StructType("{" ~ fields ~ "}")
   val enum = EnumType("{" ~ names ~ "}")
-  
+
   val type_struct = "struct" ~ (struct | StructName(name))
   val type_enum = "enum" ~ (enum | EnumName(name))
   val type_df = TypedefName(name filter typedefs.contains)
@@ -79,17 +80,29 @@ class Grammar {
 
   object app extends ((String, List[Expr]) => Expr) {
     def apply(op: String, args: List[Expr]) = args match {
+      case List(arg) if op == "&" => Ref(arg)
+      case List(arg) if op == "*" => DeRef(arg)
       case List(arg) => UnOp(op, arg)
       case List(arg1, arg2) => BinOp(op, arg1, arg2)
     }
   }
 
-  val expr_low: Parser[Expr] = M(cond_expr, op, app, Operators.low)
-  val expr_high: Parser[Expr] = M(expr_cast, op, app, Operators.high)
+  val expr_low: Parser[Expr] = M(cond_expr, low_op, app, Operators.low)
+  val expr_high: Parser[Expr] = M(expr_cast, high_op, app, Operators.high)
 
-  val primary_expr = id | const
+  val expr = expr_low
+  val exprs = expr ~+ ","
 
-  val expr_cast: Parser[Expr] = P(Cast("(" ?~ typ ~ ")" ~ expr_cast)) | primary_expr
+  val funcall = FunCall(name ?~ "(" ~ exprs ~ ")")
+  val expr_primary: Parser[Expr] = funcall | id | const
+
+  val index = "[" ~ expr ~ "]" map { index => (base: Expr) => Index(base, index) }
+  val dot = "." ~ name map { field => (base: Expr) => Dot(base, field) }
+  val arrow = "->" ~ name map { field => (base: Expr) => Lookup(base, field) }
+  val post: Parser[Expr => Expr] = index | dot | arrow
+  val expr_postfix = post.foldLeft(expr_primary)((e, f) => f(e))
+
+  val expr_cast: Parser[Expr] = P(Cast("(" ?~ typ ~ ")" ~ expr_cast)) | expr_postfix
   val expr_parens = ("(" ~ expr_low ~ ")")
   // val expr_unary = ???
 
@@ -97,9 +110,6 @@ class Grammar {
     case a ~ None => a
     case a ~ Some(b ~ c) => Question(a, b, c)
   })
-
-  val expr = expr_low
-  val exprs = expr ~+ ","
 
   val global: Parser[Global] = P(typedef | structdef | enumdef | fundef | vardef)
   val unit = global *
@@ -111,7 +121,18 @@ class Grammar {
   val init = "=" ~ expr
   val vardef = var_def(typ ?~ name ?~ init.? ~ ";")
 
-  val block: Parser[Block] = Block("{" ~ ret(Nil) ~ "}")
+  val block: Parser[Block] = P(Block("{" ~ stmts ~ "}"))
+  val block_or_stmt: Parser[Block] = P(Block("{" ~ stmts ~ "}" | (stmt1 ~ ";")))
+
+  val _return = Return("return" ~ expr.? ~ ";")
+  val _if = If("if" ~ expr_parens ~ block_or_stmt ~ ("else" ~ block_or_stmt).?)
+  val _while = While("while" ~ expr_parens ~ block_or_stmt)
+  val atomic = Atomic(expr ~ ";")
+
+  val stmt = _return | _if | _while | vardef | atomic
+  val stmt1 = stmt map { List(_) }
+  val stmts = stmt *
+
   val block_option = (block map { Some(_) }) | None(";")
 
   val param = Param(typ ~ name)
@@ -119,32 +140,8 @@ class Grammar {
   val fundef = fun_def(typ ?~ name ?~ "(" ~ params ~ ")" ~ block_option)
 
   /*
-sealed trait Type
-  val void = Void
-  val sint = SInt(size)
-  val uint = UInt(size)
-  val ptr = Ptr(typ)
-
-  val typename = TypeName(name)
-  val structname = StructName(name)
-  val unionname = UnionName(name)
-  val enumname = EnumName(name)
-
-  val structtype = StructType(fields[Field])
-  val uniontype = UnionType(cases[Type])
-
-sealed trait Expr
-
-  val id = Id(name)
-  val const = Const(value)
-
-  val unop = UnOp(op ~ arg)
-  val binop = BinOp(op ~ arg1 ~ arg2)
-  val question = Question(test ~ left ~ right)
-
   val sizeoftype = SizeOfType(typ)
   val sizeofexpr = SizeOfExpr(expr)
-  val cast = Cast(typ ~ expr)
 
   val lookup = Lookup(expr ~ field)
   val index = Index(expr ~ index)
