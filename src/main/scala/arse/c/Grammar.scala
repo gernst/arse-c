@@ -5,50 +5,7 @@ import arse._
 import arse.implicits._
 
 class Grammar {
-  object context {
-    val typedefs = mutable.Map[String, Type]()
-    val structs = mutable.Map[String, Type]()
-    val enums = mutable.Map[String, Type]()
-    val vars = mutable.Map[String, (Type, Option[Expr])]()
-    val funs = mutable.Map[String, (Type, List[Param], Option[Block])]()
-
-    object type_def extends ((Type, String) => TypeDef) {
-      def apply(typ: Type, name: String) = {
-        typedefs(name) = typ
-        TypeDef(typ, name)
-      }
-    }
-
-    object struct_def extends ((String, StructType) => StructDef) {
-      def apply(name: String, typ: StructType) = {
-        structs(name) = typ
-        StructDef(name, typ.fields)
-      }
-    }
-
-    object enum_def extends ((String, EnumType) => EnumDef) {
-      def apply(name: String, typ: EnumType) = {
-        enums(name) = typ
-        EnumDef(name, typ.consts)
-      }
-    }
-
-    object var_def extends ((Type, String, Option[Expr]) => VarDef) {
-      def apply(typ: Type, name: String, init: Option[Expr]) = {
-        vars(name) = (typ, init)
-        VarDef(typ, name, init)
-      }
-    }
-
-    object fun_def extends ((Type, String, List[Param], Option[Block]) => FunDef) {
-      def apply(ret: Type, name: String, params: List[Param], body: Option[Block]) = {
-        funs(name) = (ret, params, body)
-        FunDef(ret, name, params, body)
-      }
-    }
-  }
-
-  import context._
+  import context._ // see at the end
 
   val low_op = L(Operators.low.ops.sorted.reverse: _*) // long identifiers first
   val high_op = L(Operators.high.ops.sorted.reverse: _*)
@@ -56,7 +13,7 @@ class Grammar {
   val names = name ~* ","
 
   val id = Id(name)
-  val const = int map Const
+  val const = int map Lit
   val type_spec = Sort(L("void", "int", "bool"))
 
   object ptr extends ((String, List[Type]) => Type) {
@@ -71,6 +28,7 @@ class Grammar {
   val field = Field(typ ~ name)
   val fields = (field ~ ";") *
   val struct = StructType("{" ~ fields ~ "}")
+  val union = UnionType("{" ~ fields ~ "}")
   val enum = EnumType("{" ~ names ~ "}")
 
   val type_struct = "struct" ~ (struct | StructName(name))
@@ -111,10 +69,11 @@ class Grammar {
     case a ~ Some(b ~ c) => Question(a, b, c)
   })
 
-  val global: Parser[Global] = P(typedef | structdef | enumdef | fundef | vardef)
+  val global: Parser[Global] = P(typedef | structdef | uniondef | enumdef | fundef | vardef)
   val unit = global *
 
   val typedef = type_def("typedef" ~ typ ~ name ~ ";")
+  val uniondef = union_def("union" ?~ name ?~ union ~ ";")
   val structdef = struct_def("struct" ?~ name ?~ struct ~ ";")
   val enumdef = enum_def("enum" ?~ name ?~ enum ~ ";")
 
@@ -122,14 +81,17 @@ class Grammar {
   val vardef = var_def(typ ?~ name ?~ init.? ~ ";")
 
   val block: Parser[Block] = P(Block("{" ~ stmts ~ "}"))
-  val block_or_stmt: Parser[Block] = P(Block("{" ~ stmts ~ "}" | (stmt1 ~ ";")))
+  val block_or_stmt: Parser[Block] = P(Block("{" ~ stmts ~ "}" | (stmt1 ~ ";") | stmt0 ~ ";"))
 
   val _return = Return("return" ~ expr.? ~ ";")
   val _if = If("if" ~ expr_parens ~ block_or_stmt ~ ("else" ~ block_or_stmt).?)
   val _while = While("while" ~ expr_parens ~ block_or_stmt)
+  val _for_head = "(" ~ expr ~ ";" ~ expr ~ ";" ~ expr ~ ")"
+  val _for = For("for" ~ _for_head ~ block_or_stmt)
   val atomic = Atomic(expr ~ ";")
 
   val stmt = _return | _if | _while | vardef | atomic
+  val stmt0 = ret(Nil)
   val stmt1 = stmt map { List(_) }
   val stmts = stmt *
 
@@ -137,28 +99,58 @@ class Grammar {
 
   val param = Param(typ ~ name)
   val params = param ~* ","
-  val fundef = fun_def(typ ?~ name ?~ "(" ~ params ~ ")" ~ block_option)
+  val funsig = typ ?~ name ?~ "(" ~ params ~ ")"
+  val fundef = fun_def(funsig ~ block_option)
 
-  /*
-  val sizeoftype = SizeOfType(typ)
-  val sizeofexpr = SizeOfExpr(expr)
+  object context {
+    val typedefs = mutable.Map[String, Type]()
+    val structs = mutable.Map[String, Type]()
+    val enums = mutable.Map[String, Type]()
+    val unions = mutable.Map[String, Type]()
+    val vars = mutable.Map[String, (Type, Option[Expr])]()
+    val funs = mutable.Map[String, (Type, List[Param], Option[Block])]()
 
-  val lookup = Lookup(expr ~ field)
-  val index = Index(expr ~ index)
-  val ref = Ref(expr)
-  val deref = DeRef(expr)
+    object type_def extends ((Type, String) => TypeDef) {
+      def apply(typ: Type, name: String) = {
+        typedefs(name) = typ
+        TypeDef(typ, name)
+      }
+    }
 
-  val funcall = FunCall(name ~ args[Expr]) // no function pointers
+    object struct_def extends ((String, StructType) => StructDef) {
+      def apply(name: String, typ: StructType) = {
+        structs(name) = typ
+        StructDef(name, typ.fields)
+      }
+    }
 
-  val init = Init(values[(Option[String] ~ Expr)])
+    object union_def extends ((String, UnionType) => UnionDef) {
+      def apply(name: String, typ: UnionType) = {
+        structs(name) = typ
+        UnionDef(name, typ.cases)
+      }
+    }
 
-  val block = Block(stmts[Stmt])
+    object enum_def extends ((String, EnumType) => EnumDef) {
+      def apply(name: String, typ: EnumType) = {
+        enums(name) = typ
+        EnumDef(name, typ.consts)
+      }
+    }
 
-sealed trait Stmt
-  val atomic = Atomic(expr)
-  val return = Return(expr[Expr])
-  val if = If(test ~ left ~ right)
-  val while = While(test ~ body)
-  val for = For(init ~ test ~ inc ~ body)
-   */
+    object var_def extends ((Type, String, Option[Expr]) => VarDef) {
+      def apply(typ: Type, name: String, init: Option[Expr]) = {
+        vars(name) = (typ, init)
+        VarDef(typ, name, init)
+      }
+    }
+
+    object fun_def extends ((Type, String, List[Param], Option[Block]) => FunDef) {
+      def apply(ret: Type, name: String, params: List[Param], body: Option[Block]) = {
+        funs(name) = (ret, params, body)
+        FunDef(ret, name, params, body)
+      }
+    }
+  }
+
 }

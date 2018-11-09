@@ -8,7 +8,7 @@ object Operators {
     val prefix_ops = Map()
     val infix_ops = Map()
   }
-  
+
   object high extends Syntax[String] {
     val postfix_ops = Map(
       "++" -> 15,
@@ -57,8 +57,9 @@ object Operators {
       ">>=" -> (Right, 2),
       "&=" -> (Right, 2),
       "^=" -> (Right, 2),
-      "|=" -> (Right, 2),
-      "," -> (Left, 1))
+      "|=" -> (Right, 2)
+    //"," -> (Left, 1)
+    )
   }
 
 }

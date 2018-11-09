@@ -6,31 +6,31 @@ void unlock(Lock *l);
 
 typedef enum {
     Low,
-    High,
+    High
 } Sec;
 
 typedef enum {
     ButtonLow,
     ButtonHigh,
-    ButtonOverlay,
+    ButtonOverlay
 } Button;
 
 typedef enum {
     DomainLow,
     DomainHigh,
     DomainOverlay,
-    DomainInvalid,
+    DomainInvalid
 } Domain;
 
 typedef enum {
     EventTypeMouse,
     EventTypeNone,
-    EventTypeKeyboard,
+    EventTypeKeyboard
 } EventType;
 
 typedef enum {
     EventNone,
-    EventMouseDown,
+    EventMouseDown
 } Event;
 
 Lock      *rpc_overlay_mouse_click_lock;
@@ -57,53 +57,18 @@ Lock      *compositor_read_atomicity_lock;
 Event     *compositor_cursor_position;
 Domain    *compositor_domain_under_cursor;
 
-Sec type(void *ptr) {
-    if(ptr == current_event_data) {
-        if(*hid_current_event_type == EventTypeKeyboard && *indicated_domain == DomainHigh)
-            return High;
-        else
-            return Low;
-    } else if(ptr == output_event_buffer1) {
-        return High;
-    } else if(ptr == hid_high_keyboard_source) {
-        return High;
-    } else {
-        return Low;
-    }
-}
-
 void driver() {
-    while(true) {
-        lock(rpc_overlay_mouse_click_lock);
-
-        if(*rpc_overlay_mouse_click_call) {
-            *rpc_overlay_mouse_click_call = false;
-
-            if(*rpc_overlay_mouse_click_arg == ButtonLow) {
-                *rpc_overlay_mouse_click_ret = DomainLow;
-            } else if(*rpc_overlay_mouse_click_arg == ButtonHigh) {
-                *rpc_overlay_mouse_click_ret = DomainHigh;
-            } else if (*rpc_overlay_mouse_click_arg == ButtonOverlay) {
-                *rpc_overlay_mouse_click_ret = DomainOverlay;
-            } else {
-                *rpc_overlay_mouse_click_ret = DomainInvalid;
-            }
-        }
-
-        unlock(rpc_overlay_mouse_click_lock);
-    }
-}
-
-void input_switch()
-{
-    bool temp, done_rpc, switch_state_mouse_down = false;
-    Domain overlay_result, cursor_domain;
+    bool temp;
+    bool done_rpc;
+    bool switch_state_mouse_down = false;
+    Domain overlay_result;
+    Domain cursor_domain;
 
     *current_event_data = EventNone;
     *indicated_domain = *active_domain;
 
     *hid_current_event_type = EventTypeNone;
-
+    
     while(true) {
         lock(hid_read_atomicity_lock);
         temp = *hid_mouse_available;
@@ -217,3 +182,6 @@ void input_switch()
         *hid_current_event_type = EventTypeNone;
     }
 }
+
+
+

@@ -34,8 +34,8 @@ case class EnumType(consts: List[String]) extends Type
 
 sealed trait Expr
 
-case class Id(name: String) extends Expr with Type
-case class Const(value: Any) extends Expr
+case class Id(name: String) extends Expr
+case class Lit(value: Any) extends Expr
 
 case class UnOp(op: String, arg: Expr) extends Expr // op arg
 case class BinOp(op: String, arg1: Expr, arg2: Expr) extends Expr // arg1 op arg2
