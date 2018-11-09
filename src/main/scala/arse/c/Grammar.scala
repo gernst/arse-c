@@ -50,8 +50,8 @@ class Grammar {
 
   import context._
 
-  val low_op = L(Operators.low.ops: _*)
-  val high_op = L(Operators.high.ops: _*)
+  val low_op = L(Operators.low.ops.sorted.reverse: _*) // long identifiers first
+  val high_op = L(Operators.high.ops.sorted.reverse: _*)
   val name = S("[a-zA-Z_][a-zA-Z_0-9]*")
   val names = name ~* ","
 
