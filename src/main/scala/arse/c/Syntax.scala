@@ -5,34 +5,31 @@ case class Param(typ: Type, name: String)
 
 sealed trait Global
 
+case class TypeDef(typ: Type, name: String) extends Global
 case class StructDef(name: String, fields: List[Field]) extends Global
 case class UnionDef(name: String, fields: List[Field]) extends Global
 case class EnumDef(name: String, cases: List[String]) extends Global
 
-case class IdDef(typ: Type, name: String, impl: Impl) extends Global
-
-sealed trait Impl
-case class VarImpl(init: Option[Expr]) extends Impl
-case class FunImpl(params: List[Param], body: Option[Block]) extends Impl
+case class VarDef(typ: Type, name: String, init: Option[Expr]) extends Global
+case class FunDef(ret: Type, name: String, params: List[Param], body: Option[Block]) extends Global
 
 sealed trait Type
 case class Sort(name: String) extends Type
 
 object Sort extends (String => Sort) {
   def int = Sort("int")
-  def bool = Sort("bool")
   def void = Sort("void")
 }
 
 case class Ptr(typ: Type) extends Type
 
-case class TypeName(name: String) extends Type
+case class TypedefName(name: String) extends Type
 case class StructName(name: String) extends Type
 case class UnionName(name: String) extends Type
 case class EnumName(name: String) extends Type
 
 case class StructType(fields: List[Field]) extends Type
-case class UnionType(cases: List[Type]) extends Type
+case class UnionType(cases: List[Field]) extends Type
 case class EnumType(consts: List[String]) extends Type
 
 sealed trait Expr

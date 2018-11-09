@@ -3,6 +3,12 @@ package arse.c
 import arse._
 
 object Operators {
+  object typ extends Syntax[String] {
+    val postfix_ops = Map("*" -> 0)
+    val prefix_ops = Map()
+    val infix_ops = Map()
+  }
+  
   object high extends Syntax[String] {
     val postfix_ops = Map()
     val prefix_ops = Map(

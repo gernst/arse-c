@@ -1,32 +1,49 @@
 package arse.c
 
+import scala.collection.mutable
 import arse._
 import arse.implicits._
 
 class Grammar {
   object context {
-    var structs: Map[String, Type] = Map()
-    var enums: Map[String, Type] = Map()
-    var idents: Map[String, (Type, Impl)] = Map()
+    val typedefs = mutable.Map[String, Type]()
+    val structs = mutable.Map[String, Type]()
+    val enums = mutable.Map[String, Type]()
+    val vars = mutable.Map[String, (Type, Option[Expr])]()
+    val funs = mutable.Map[String, (Type, List[Param], Option[Block])]()
 
-    object struct_def extends ((String, List[Field]) => StructDef) {
-      def apply(name: String, fields: List[Field]) = {
-        structs += name -> StructType(fields)
-        StructDef(name, fields)
+    object type_def extends ((Type, String) => TypeDef) {
+      def apply(typ: Type, name: String) = {
+        typedefs(name) = typ
+        TypeDef(typ, name)
       }
     }
 
-    object enum_def extends ((String, List[String]) => EnumDef) {
-      def apply(name: String, cases: List[String]) = {
-        enums += name -> EnumType(cases)
-        EnumDef(name, cases)
+    object struct_def extends ((String, StructType) => StructDef) {
+      def apply(name: String, typ: StructType) = {
+        structs(name) = typ
+        StructDef(name, typ.fields)
       }
     }
 
-    object id_def extends ((Type, String, Impl) => IdDef) {
-      def apply(typ: Type, name: String, impl: Impl) = {
-        idents += name -> (typ, impl)
-        IdDef(typ, name, impl)
+    object enum_def extends ((String, EnumType) => EnumDef) {
+      def apply(name: String, typ: EnumType) = {
+        enums(name) = typ
+        EnumDef(name, typ.consts)
+      }
+    }
+
+    object var_def extends ((Type, String, Option[Expr]) => VarDef) {
+      def apply(typ: Type, name: String, init: Option[Expr]) = {
+        vars(name) = (typ, init)
+        VarDef(typ, name, init)
+      }
+    }
+
+    object fun_def extends ((Type, String, List[Param], Option[Block]) => FunDef) {
+      def apply(ret: Type, name: String, params: List[Param], body: Option[Block]) = {
+        funs(name) = (ret, params, body)
+        FunDef(ret, name, params, body)
       }
     }
   }
@@ -41,9 +58,24 @@ class Grammar {
   val const = int map Const
   val type_spec = Sort(L("void", "int", "bool"))
 
-  val type_struct = "struct" ~ structs(name)
-  val type_enum = "enum" ~ enums(name)
-  val typ: Parser[Type] = type_struct | type_enum | type_spec
+  object ptr extends ((String, List[Type]) => Type) {
+    def apply(op: String, args: List[Type]) = args match {
+      case List(arg) if op == "*" => Ptr(arg)
+      case List(arg1, arg2) => ???
+    }
+  }
+
+  val typ: Parser[Type] = M(type_primary, L("*"), ptr, Operators.typ)
+
+  val field = Field(typ ~ name)
+  val fields = (field ~ ";") *
+  val struct = StructType("{" ~ fields ~ "}")
+  val enum = EnumType("{" ~ names ~ "}")
+  
+  val type_struct = "struct" ~ (struct | StructName(name))
+  val type_enum = "enum" ~ (enum | EnumName(name))
+  val type_df = TypedefName(name filter typedefs.contains)
+  val type_primary = type_struct | type_enum | type_df | type_spec
 
   object app extends ((String, List[Expr]) => Expr) {
     def apply(op: String, args: List[Expr]) = args match {
@@ -69,27 +101,22 @@ class Grammar {
   val expr = expr_low
   val exprs = expr ~+ ","
 
-  val global: Parser[Global] = P(structdef | enumdef | iddef)
+  val global: Parser[Global] = P(typedef | structdef | enumdef | fundef | vardef)
   val unit = global *
 
-  val field = Field(typ ~ name)
-  val fields = (field ~ ";") *
-
-  val structdef = struct_def("struct" ~ name ~ "{" ~ fields ~ "}" ~ ";")
-  val enumdef = enum_def("enum" ~ name ~ "{" ~ names ~ "}" ~ ";")
+  val typedef = type_def("typedef" ~ typ ~ name ~ ";")
+  val structdef = struct_def("struct" ?~ name ?~ struct ~ ";")
+  val enumdef = enum_def("enum" ?~ name ?~ enum ~ ";")
 
   val init = "=" ~ expr
-  val varimpl = VarImpl(init.? ~ ";")
+  val vardef = var_def(typ ?~ name ?~ init.? ~ ";")
 
   val block: Parser[Block] = Block("{" ~ ret(Nil) ~ "}")
   val block_option = (block map { Some(_) }) | None(";")
 
   val param = Param(typ ~ name)
   val params = param ~* ","
-  val funimpl = FunImpl("(" ~ params ~ ")" ~ block_option)
-
-  val impl = funimpl | varimpl
-  val iddef = id_def(typ ~ name ~ impl)
+  val fundef = fun_def(typ ?~ name ?~ "(" ~ params ~ ")" ~ block_option)
 
   /*
 sealed trait Type
