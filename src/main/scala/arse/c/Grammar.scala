@@ -12,8 +12,8 @@ class Grammar {
   val name = S("[a-zA-Z_][a-zA-Z_0-9]*")
   val names = name ~* ","
 
-  val id = Id(name)
-  val const = int map Lit
+  val id = P(Id(name))
+  val const = P(int map Lit)
   val type_spec = Sort(L("void", "int", "bool"))
 
   object ptr extends ((String, List[Type]) => Type) {
@@ -48,8 +48,8 @@ class Grammar {
   val expr_low: Parser[Expr] = M(cond_expr, low_op, app, Operators.low)
   val expr_high: Parser[Expr] = M(expr_cast, high_op, app, Operators.high)
 
-  val expr = expr_low
-  val exprs = expr ~+ ","
+  val expr = P(expr_low)
+  val exprs = P(expr ~* ",")
 
   val funcall = FunCall(name ?~ "(" ~ exprs ~ ")")
   val expr_primary: Parser[Expr] = funcall | id | const
@@ -81,7 +81,7 @@ class Grammar {
   val vardef = var_def(typ ?~ name ?~ init.? ~ ";")
 
   val block: Parser[Block] = P(Block("{" ~ stmts ~ "}"))
-  val block_or_stmt: Parser[Block] = P(Block("{" ~ stmts ~ "}" | (stmt1 ~ ";") | stmt0 ~ ";"))
+  val block_or_stmt: Parser[Block] = P(Block("{" ~ stmts ~ "}" | stmt1 | (stmt0 ~ ";")))
 
   val _return = Return("return" ~ expr.? ~ ";")
   val _if = If("if" ~ expr_parens ~ block_or_stmt ~ ("else" ~ block_or_stmt).?)
@@ -99,8 +99,8 @@ class Grammar {
 
   val param = Param(typ ~ name)
   val params = param ~* ","
-  val funsig = typ ?~ name ?~ "(" ~ params ~ ")"
-  val fundef = fun_def(funsig ~ block_option)
+  val funsig = P(typ ?~ name ?~ "(" ~ params ~ ")")
+  val fundef = P(fun_def(funsig ~ block_option))
 
   object context {
     val typedefs = mutable.Map[String, Type]()
