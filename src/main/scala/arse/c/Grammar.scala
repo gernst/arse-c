@@ -72,9 +72,9 @@ class Grammar(val context: Context) {
   val unit = global *
 
   val typedef = type_def("typedef" ~ typ ~ name ~ ";")
-  val uniondef = union_def("union" ?~ name ?~ union ~ ";")
-  val structdef = struct_def("struct" ?~ name ?~ struct ~ ";")
-  val enumdef = enum_def("enum" ?~ name ?~ enum ~ ";")
+  val uniondef = union_def("union" ?~ name ?~ union.? ?~ ";")
+  val structdef = struct_def("struct" ?~ name ?~ struct.? ?~ ";")
+  val enumdef = enum_def("enum" ?~ name ?~ enum.? ?~ ";")
 
   val init = "=" ~ expr
   val vardef = var_def(typ ?~ name ?~ init.? ~ ";")

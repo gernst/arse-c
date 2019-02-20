@@ -5,6 +5,7 @@ case class Param(typ: Type, name: String)
 
 sealed trait Global
 
+case object Nop extends Global
 case class TypeDef(typ: Type, name: String) extends Global
 case class StructDef(name: String, fields: List[Field]) extends Global
 case class UnionDef(name: String, fields: List[Field]) extends Global

@@ -17,24 +17,36 @@ class Context {
     }
   }
 
-  object struct_def extends ((String, StructType) => StructDef) {
-    def apply(name: String, typ: StructType) = {
-      structs(name) = typ
-      StructDef(name, typ.fields)
+  object struct_def extends ((String, Option[StructType]) => Global) {
+    def apply(name: String, typ: Option[StructType]) = typ match {
+      case None =>
+        structs(name) = StructName(name)
+        Nop
+      case Some(typ) =>
+        structs(name) = typ
+        StructDef(name, typ.fields)
     }
   }
 
-  object union_def extends ((String, UnionType) => UnionDef) {
-    def apply(name: String, typ: UnionType) = {
-      structs(name) = typ
-      UnionDef(name, typ.cases)
+  object union_def extends ((String, Option[UnionType]) => Global) {
+    def apply(name: String, typ: Option[UnionType]) = typ match {
+      case None =>
+        unions(name) = UnionName(name)
+        Nop
+      case Some(typ) =>
+        unions(name) = typ
+        UnionDef(name, typ.cases)
     }
   }
 
-  object enum_def extends ((String, EnumType) => EnumDef) {
-    def apply(name: String, typ: EnumType) = {
-      enums(name) = typ
-      EnumDef(name, typ.consts)
+  object enum_def extends ((String, Option[EnumType]) => Global) {
+    def apply(name: String, typ: Option[EnumType]) = typ match {
+      case None =>
+        enums(name) = EnumName(name)
+        Nop
+      case Some(typ) =>
+        enums(name) = typ
+        EnumDef(name, typ.consts)
     }
   }
 
